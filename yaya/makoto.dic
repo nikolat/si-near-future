@@ -1,0 +1,216 @@
+/******************************************************************************
+ *                                                                            *
+ *	サンプルMAKOTO                                                            *
+ *                                                                            *
+ ******************************************************************************/
+
+#define true  1
+#define false 0
+#define ESCAPE '\'
+
+/*
+// 利用できるグローバル変数 //////////////////////////
+
+	// AYA変数
+	AYAMAKOTO.PATH:    文の基準ディレクトリパス
+	AYAMAKOTO.VERSION: MAKOTOプロトコルのバージョン
+	AYAMAKOTO.CHARSET: 文の文字セット
+
+	// EXECUTE時のリクエストヘッダの内容
+	REQ.HEADER:   MAKOTOリクエストヘッダ
+	REQ.COMMAND:  コマンド(常にEXECUTE)
+	REQ.VERSION:  MAKOTOプロトコルのバージョン
+	REQ.PROTOCOL: プロトコル名(常にMAKOTO)
+	REQ.STRING:   トランスレートする文字列
+	REQ.CHARSET:  トランスレートする文字列の文字セット
+	REQ.SENDER:   ヘッダの送信者
+*/
+
+
+
+
+// OnLoad、OnUnload、OnExecuteの3つの関数は必ず存在する必要がある //////////////
+/**
+ *	ロード時に呼ばれる
+ *	置換用ファイルを読み込んで変数に格納する
+ *
+ *	@param	_argv[0]	ディレクトリパス
+ */
+OnLoad
+{
+	_path  = _argv[0]
+	_files = FENUM(_path)
+
+	foreach _files; _file {
+		if RE_MATCH(_file, "makoto(\d*)\.lst") {
+			if FOPEN(_file, "r") {
+				_match = RE_GETSTR()[1]
+				if _match != "" {
+					if !ISVAR("scopes") {
+						scopes = IARRAY()
+					}
+					scopes ,= _match
+				}
+				EVAL("pattern%(_match) = IARRAY()")
+				EVAL("replace%(_match) = IARRAY()")
+				while (_line = FREAD(_file)) != -1 {
+					if _line != "" && !RE_SEARCH(_line, "^//") {
+						_word = SPLIT(_line, ",", 2)
+						if _word[0] != "" {
+							EVAL("pattern%(_match) ,= _word[0]")
+							EVAL("replace%(_match) ,= _word[1]")
+						}
+					}
+				}
+				FCLOSE(_file)
+			}
+		}
+	}
+}
+
+
+/**
+ *	アンロード時に呼ばれる
+ *	使った変数を解放する
+ */
+OnUnload
+{
+	foreach scopes; _num {
+		ERASEVAR("pattern%(_num)")
+		ERASEVAR("replace%(_num)")
+	}
+	if ISVAR("pattern") {
+		ERASEVAR("pattern")
+		ERASEVAR("replace")
+	}
+	ERASEVAR("scopes")
+}
+
+/**
+ *	EXECUTEリクエスト時に呼ばれる
+ *
+ *	@param	_argv[0]	置換対象文字列
+ *
+ *	@return	置換後の文字列
+ */
+OnExecute
+{
+	_str   = _argv[0]
+	_ret   = ""
+	_scope = 0		// カレント置換対象スコープ
+	_presv = 0		// 置換対象スコープ予約
+	_start = 0		// 置換トークン先頭ポインタ
+	_end   = 0		// 置換トークン終端ポインタ
+	_pos   = 0		// 走査位置
+
+	// 全キャラクタ置換
+	if ISVAR("pattern") {
+		_size = ARRAYSIZE(pattern)
+		for _i = 0; _i < _size; _i++ {
+			_str = RE_REPLACE(_str, EVAL(pattern[_i]), EVAL(replace[_i]))
+		}
+	}
+	_len = STRLEN(_str)
+	while _pos < _len {
+		_c = SUBSTR(_str, _pos, 1)
+		// スコープ切り換えエスケープシーケンスを探す
+		if _c == ESCAPE {
+			_pos++
+			_cnt = 0
+			// エスケープ文字数分走査位置を進める
+			if !escaped(_str, _pos, ESCAPE, &_cnt) {
+				_pos += _cnt
+				_c = SUBSTR(_str, _pos, 1)
+				if _c == 'h' || _c == 'u' || _c == '0' || _c == '1' {
+					if _start || _pos > 1 {
+						_end = _pos - 1		// トークン終端位置のセット
+					}
+				}
+				case _c {
+				when 'h' {
+					_presv = 0
+				}
+				when 'u' {
+					_presv = 1
+				}
+				when '0', '1' {
+					_presv = TOINT(_c)
+				}
+				when 'p' {
+					_pos++
+					_bracket = SUBSTR(_str, _pos, _len - _pos)
+					if RE_SEARCH(_bracket, "^\[(\d+)\]") {
+						_presv = TOINT(RE_GETSTR()[1])
+						if _start || _pos > 1 {
+							_end = _pos - 2		// トークン終端位置のセット
+						}
+						_pos += RE_GETLEN()[0]	// ブラケットをスキップ
+					}
+				}
+				}
+			} else {
+				// 処理回数削減のためにエスケープ範囲をスキップ
+				_pos += _cnt - 1
+			}
+		}
+		_pos++
+
+		// 走査位置が文字列終端まできたら、未処理文字列は全てカレントスコープの置換対象
+		if _pos >= _len {
+			_end = _len
+		}
+		if _end {
+			if ARRAYSIZE(scopes) != 0 {
+				_trans   = SUBSTR(_str, _start, _end - _start)
+				if ASEARCH(_scope, scopes) {
+					_pattern = EVAL("pattern%(_scope)")
+					_replace = EVAL("replace%(_scope)")
+					_size    = ARRAYSIZE(_pattern)
+					// 各キャラクタ置換
+					for _i = 0; _i < _size; _i++ {
+						_trans = RE_REPLACE(_trans, EVAL(_pattern[_i]), EVAL(_replace[_i]))
+					}
+					_ret += _trans
+				}
+			} else {
+				_ret += SUBSTR(_str, _start, _end - _start)
+			}
+			_scope = _presv		// カレントスコープを次のスコープに変更
+			_start = _end		// 次のスコープの先頭
+			_end   = 0			// トークン終端ポインタの初期化
+		}
+	}
+	_ret
+}
+
+
+/**
+ *	エスケープされているか調べる
+ *
+ *  @param	 _argv[0] 調べる文字列
+ *	@param	 _argv[1] 調査開始位置
+ *	@param	 _argv[2] エスケープ文字
+ *	@param	&_argv[3] エスケープ文字数
+ *
+ *	@return エスケープ文字数
+ */
+escaped
+{
+	_str = _argv[0]
+	_pos = _argv[1]
+	_esc = _argv[2]
+	_cnt = _argv[3]		// エスケープ文字数カウンタ
+	_len = STRLEN(_str)
+	_escaped = false
+	while _pos < _len {
+		if SUBSTR(_str, _pos, 1) == _esc {
+			_escaped = !_escaped
+			_cnt++
+		} else {
+			break
+		}
+		_pos++
+	}
+	_argv[3] = _cnt
+	_escaped
+}

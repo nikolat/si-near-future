@@ -1,0 +1,5 @@
+charset,UTF-8
+type,shell
+name,near-future
+directory,near-future
+accept,ancient-tablet

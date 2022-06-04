@@ -1,0 +1,173 @@
+
+// aya5.dll設定
+#globaldefine AYAINFO_VERSION	0
+#globaldefine AYAINFO_CHARSET	1
+#globaldefine AYAINFO_PATH		2
+
+#define PROTOCOL_VERSION	"2.0"				/* SAORIプロトコルバージョン */
+#define CRLF	CHR(0xd)+CHR(0xa)				/* 改行コード */
+
+#globaldefine STATUS_OK							"200 OK"
+#globaldefine STATUS_NO_CONTENT					"204 No Content"
+#globaldefine STATUS_BAD_REQUEST				"400 Bad Request"
+#globaldefine STATUS_INTERNAL_SERVER_ERROR		"500 Internal Server Error"
+
+/**	AYA API load
+ *	初期化
+ *
+ *	@param	string	_argv[0] ライブラリのディレクトリパス
+ */
+load
+{
+	AYAMAKOTO.PATH      = _argv[0]
+	AYAMAKOTO.VERSION   = PROTOCOL_VERSION
+	AYAMAKOTO.CHARSET   = GetAYACharset()
+
+	OnLoad(AYAMAKOTO.PATH)
+}
+
+/**	AYA API unload
+ *	後始末
+ */
+unload
+{
+	ERASEVAR("REQ.HEADER")
+	ERASEVAR("REQ.COMMAND")
+	ERASEVAR("REQ.VERSION")
+	ERASEVAR("REQ.PROTOCOL")
+	ERASEVAR("REQ.STRING")
+	ERASEVAR("REQ.CHARSET")
+	ERASEVAR("REQ.SENDER")
+
+	OnUnload();
+
+	ERASEVAR("AYAMAKOTO.PATH")
+	ERASEVAR("AYAMAKOTO.VERSION")
+	ERASEVAR("AYAMAKOTO.CHARSET")
+}
+
+
+
+/**	AYA API request
+ *	リクエストヘッダを解析し、指定の関数を呼び出して結果をレスポンスヘッダとして返す
+ *
+ *	@param	string	_argv[0] リクエストヘッダ文字列
+ *	@return	string	レスポンスヘッダ文字列
+ */
+request
+{
+	REQ.HEADER = _argv[0]
+	_header    = SPLIT(_argv[0], CRLF)
+
+	// 不正なヘッダ
+	if ARRAYSIZE(_header) <= 1 {
+		AYAMAKOTO.Response(STATUS_BAD_REQUEST)
+		return
+	}
+
+	// リクエストラインの分析
+	_requestLine = _header[0]
+	_header[0]   = IARRAY
+	_requestLine = CUTSPACE(_requestLine)
+
+	if STRSTR(_requestLine, "GET Version", 0) != -1 {
+		AYAMAKOTO.Response(STATUS_OK)
+		return
+	} elseif STRSTR(_requestLine, "MAKOTO", 0) == -1 {
+		AYAMAKOTO.Response(STATUS_BAD_REQUEST)
+		return
+	}
+	REQ.COMMAND  = _requestLine[0, " MAKOTO"]
+	REQ.VERSION  = _requestLine[1, "/"]
+	REQ.PROTOCOL = "MAKOTO/" + REQ.VERSION
+
+	case REQ.COMMAND {
+	when "EXECUTE" {
+		foreach _header; _line {
+			if _line == ""
+				break
+			_field = SPLIT(_line, ":", 2)
+			_key   = CUTSPACE(_field[0])
+			_value = CUTSPACE(_field[1])
+
+			// 変数をセットする。大文字で統一
+			// Charset, SecurityLevel, Sender, Argument[0..n] 以外は無いはず
+			_key = TOUPPER(_key)
+			if _key == "CHARSET" || _key == "SENDER" || _key == "STRING"
+				LETTONAME("REQ.%(_key)", _value)
+		}
+		_res = OnExecute(REQ.STRING)
+		if _res == REQ.STRING {
+			AYAMAKOTO.Response(STATUS_NO_CONTENT)
+		} else {
+			RES.STRING = _res
+			AYAMAKOTO.Response(STATUS_OK)
+		}
+		return
+	}
+	// 未知のリクエスト
+	others
+		AYAMAKOTO.Response(STATUS_BAD_REQUEST)
+		return
+	}
+}
+
+
+/**	レスポンスヘッダを構築する
+ *
+ *	@param	string   _argv[0] ステータス
+ *	@param	string[] _argv[1] Value[0..n]
+ *	@return	string   レスポンスヘッダ文字列
+ */
+AYAMAKOTO.Response
+{
+	_version  = ""
+	_charset  = ""
+	_sender   = ""
+	_status   = ""
+	if ISVAR("RES.VERSION") {
+		_version = RES.VERSION
+		ERASEVAR("RES.VERSION")
+	} else {
+		_version = AYAMAKOTO.VERSION
+	}
+	if ISVAR("RES.CHARSET") {
+		_charset = RES.CHARSET
+		ERASEVAR("RES.CHARSET")
+	} else {
+		_charset = AYAMAKOTO.CHARSET
+	}
+	if ISVAR("RES.STATUS") {
+		_status = RES.STATUS
+		ERASEVAR("RES.STATUS")
+	} else {
+		_status = _argv[0]
+	}
+	_response  = ""
+	_response += "MAKOTO/%(_version) %(_status)" + CRLF
+	_response += "Charset: %(_charset)"          + CRLF
+	if ISVAR("RES.STRING") {
+		_response += "String: %(RES.STRING)" + CRLF
+		ERASEVAR("RES.STRING")
+	}
+	_response + CRLF
+}
+
+
+/**	レスポンスヘッダで使用する文字コードを返す
+ *
+ *	@return string 文字コード
+ */
+GetAYACharset
+{
+	case GETSETTING(AYAINFO_CHARSET) {
+	when 0
+		 "Shift_JIS"
+	when 1
+		"UTF-8"
+	when 127
+		"default"
+	others
+		"unknown"
+	}
+}
