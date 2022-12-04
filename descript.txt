@@ -1,12 +1,14 @@
 charset,UTF-8
 type,shell
 name,near-future
-craftman,
-craftmanurl,
+craftman,Don
+craftmanurl,https://nikolat.github.io/
+homeurl,https://raw.githubusercontent.com/nikolat/si-near-future/main/
+readme,readme.txt
 readme.charset,UTF-8
+makoto,yaya\yaya.dll
 seriko.alignmenttodesktop,free
 seriko.use_self_alpha,1
-makoto,yaya\yaya.dll
 
 menu.background.bitmap.filename,menu\menu_background.png
 menu.foreground.bitmap.filename,menu\menu_foreground.png
