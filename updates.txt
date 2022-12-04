@@ -1,5 +1,5 @@
 charset,UTF-8
-file,descript.txt375a0c0f3fe9aa47a56ac61b27e18757size=794date=2012-12-21T00:00:00
+file,descript.txt48fb4821183b299805fd751f5a3f3c2bsize=912date=2012-12-21T00:00:00
 file,element_main1.png32f9f4cd322e1e465c0b740051f0c11dsize=795date=2012-12-21T00:00:00
 file,element_main2.png627b81a5c7f32638bb7441d3ad8e6b05size=1017date=2012-12-21T00:00:00
 file,element_main3.pngb158be54be7ec2160bf79f9e8aba5d9fsize=1246date=2012-12-21T00:00:00
@@ -26,5 +26,5 @@ file,surfacetable.txt7ef590c833a37c728ccf689341670723size=223date=2012-12-21T
 file,yaya/ayamakoto.dic072f5c0120ade33514fcb4ec1aaf8dbcsize=3772date=2012-12-21T00:00:00
 file,yaya/makoto.dic2f932feb5ee6b134ec49afaf237f04afsize=5411date=2012-12-21T00:00:00
 file,yaya/makoto.lst57b18c9e324d26dc9758f0a8107e1248size=168date=2012-12-21T00:00:00
-file,yaya/yaya.dll58fc69ef315965ef7328a69476767006size=876544date=2012-12-21T00:00:00
-file,yaya/yaya.txt8d7f72d6435b1266f9ade1666374ac65size=1678date=2012-12-21T00:00:00
+file,yaya/yaya.dll56e3af56c88e696cea1f39d53b239cefsize=880640date=2012-12-21T00:00:00
+file,yaya/yaya.txt2100ca2267a35de7a5585a423b443271size=1714date=2012-12-21T00:00:00
